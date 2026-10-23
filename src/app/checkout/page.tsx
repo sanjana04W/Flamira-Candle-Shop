@@ -131,15 +131,7 @@ export default function CheckoutPage() {
       const itemsSummary = cart.map((c) => `${c.title} (×${c.quantity})`).join(', ');
       const orderNumber = `ORD-2026-${Math.floor(1000 + Math.random() * 9000)}`;
 
-      // 1. Dispatch real 6-digit verification code to the customer's email address with full metadata
-      const res = sendVerificationCode(cleanEmail, name.trim(), {
-        orderNumber,
-        items: itemsSummary,
-        total: formatLKR(finalTotal),
-      });
-      setActiveSentCode(res.code);
-
-      // 2. Prepare pending order payload
+      // Save pending order payload for all paths
       const pendingOrderPayload = {
         items: cart.map((c) => ({
           productId: c.productId,
@@ -175,21 +167,39 @@ export default function CheckoutPage() {
 
       localStorage.setItem('flamira_pending_checkout', JSON.stringify(pendingOrderPayload));
 
-      // 3. Switch interface to verification mode matching Image 2
-      setIsVerifying(true);
-      setResendSeconds(60);
-      setVerificationCode('');
-      setVerifyError('');
-      setIsSubmitting(false);
-
-      // Smoothly scroll to the Email Verification section
-      if (typeof window !== 'undefined') {
+      // PATH A: Already authenticated → send code inline and show inline verification card
+      if (isAuthenticated && customer) {
+        const res = sendVerificationCode(cleanEmail, name.trim(), {
+          orderNumber,
+          items: itemsSummary,
+          total: formatLKR(finalTotal),
+        });
+        setActiveSentCode(res.code);
+        setIsVerifying(true);
+        setResendSeconds(60);
+        setVerificationCode('');
+        setVerifyError('');
+        setIsSubmitting(false);
         setTimeout(() => {
           const el = document.getElementById('email-verification-section');
-          if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 120);
+        return;
+      }
+
+      // PATH B: Not authenticated → check if email has an existing account
+      const accountExists = checkAccountExists(cleanEmail);
+
+      if (accountExists) {
+        // Has account → redirect to login page, code will be sent after login
+        router.push(
+          `/account/login?checkout=true&email=${encodeURIComponent(cleanEmail)}`
+        );
+      } else {
+        // No account → redirect to registration page
+        router.push(
+          `/account/register?checkout=true&email=${encodeURIComponent(cleanEmail)}&name=${encodeURIComponent(name.trim())}&phone=${encodeURIComponent(phone.trim())}`
+        );
       }
     } catch (err: any) {
       setErrorMsg(err?.message || 'Error processing your order. Please try again.');

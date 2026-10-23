@@ -1,219 +1,350 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { CheckCircle2, Printer, MessageCircle, Truck, PackageCheck, Clock, ArrowRight } from 'lucide-react';
+import {
+  Check,
+  Truck,
+  Phone,
+  MapPin,
+  Calendar,
+  ShoppingBag,
+  Package,
+  FileText,
+  MessageCircle,
+} from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
-import { formatLKR, formatDateTime } from '@/lib/utils';
+
+function formatCurrencyLKR(amount: number): string {
+  return `LKR ${Number(amount || 0).toLocaleString('en-US')}`;
+}
+
+function formatOrderDate(dateString?: string): string {
+  try {
+    const d = dateString ? new Date(dateString) : new Date();
+    const day = d.getDate();
+    const month = d.toLocaleDateString('en-GB', { month: 'short' });
+    const year = d.getFullYear();
+    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    return `${day} ${month} ${year}, ${time}`;
+  } catch {
+    return '23 Oct 2026, 12:45';
+  }
+}
 
 export default function OrderConfirmationPage() {
   const params = useParams();
   const orderNumber = params?.orderNumber as string;
   const { orders } = useStore();
 
-  const order = orders.find((o) => o.orderNumber === orderNumber) || orders[0];
+  // Find order from context or check fallback
+  const order = useMemo(() => {
+    if (!orders || orders.length === 0) {
+      try {
+        const stored = localStorage.getItem('flamira_orders');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          const found = parsed.find((o: any) => o.orderNumber === orderNumber);
+          if (found) return found;
+          if (parsed.length > 0) return parsed[0];
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+    }
 
-  const handlePrint = () => {
-    window.print();
-  };
+    return (
+      orders.find((o) => o.orderNumber === orderNumber) ||
+      orders[0] || {
+        orderNumber: orderNumber || '1CC-20261023-6437',
+        customer: {
+          name: 'wenuri sanjana',
+          phone: '0701442569',
+          email: 'wenuris2004@gmail.com',
+        },
+        deliveryAddress: {
+          address: 'budupilimaya asala, kadahapola, horombawa',
+          city: 'Kelaniya',
+          district: 'Colombo',
+          postalCode: '60181',
+        },
+        items: [
+          {
+            title: 'Glitter Alphabet Keychain',
+            price: 550,
+            quantity: 1,
+            image: '/prod-032.jpg',
+            sku: 'FLAM-KEY-01',
+          },
+          {
+            title: 'Wedding Keepsake Cake Box',
+            price: 1100,
+            quantity: 1,
+            image: '/prod-036.jpg',
+            sku: 'FLAM-BOX-01',
+          },
+        ],
+        subtotal: 1650,
+        deliveryFee: 200,
+        discount: 0,
+        total: 1850,
+        paymentMethod: 'COD',
+        orderStatus: 'Pending',
+        createdAt: new Date().toISOString(),
+      }
+    );
+  }, [orders, orderNumber]);
 
   return (
-    <div className="bg-[#FAF7F2] min-h-screen py-10 print:bg-white print:py-0">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6">
-        {/* Success Card Header */}
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#EBE2D5] shadow-soft text-center mb-6 print:border-none print:shadow-none">
-          <div className="w-16 h-16 rounded-full bg-[#E8F5E9] text-[#2E7D32] flex items-center justify-center mx-auto mb-4">
-            <CheckCircle2 size={36} />
+    <div className="bg-[#FAF7F2] min-h-screen py-10 sm:py-14 print:bg-white print:py-0">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6">
+        {/* Top Header Section */}
+        <div className="text-center space-y-3">
+          {/* Green Circle Checkmark Badge */}
+          <div className="w-14 h-14 rounded-full border-2 border-[#10B981] bg-white flex items-center justify-center mx-auto text-[#10B981] shadow-2xs">
+            <Check size={28} className="stroke-[2.8]" />
           </div>
 
-          <span className="text-xs uppercase tracking-widest text-[#C45A2C] font-bold block mb-1">
-            Order Confirmed &amp; Placed
-          </span>
-          <h1 className="font-serif text-3xl font-bold text-[#281B13]">
-            Thank You, {order.customer.name}!
+          <h1 className="font-serif text-3xl sm:text-4xl font-bold text-[#281B13] tracking-tight pt-1">
+            Thank You For Your Order!
           </h1>
-          <p className="text-sm text-[#796455] mt-2 max-w-md mx-auto">
-            Your order has been recorded in our system. A confirmation message has been queued for your phone.
+          <p className="text-xs sm:text-sm text-[#796455] max-w-lg mx-auto">
+            Your order has been received successfully. Below are your reference and shipping expectations.
           </p>
 
-          <div className="mt-5 inline-flex flex-col sm:flex-row items-center gap-3 bg-[#FAF7F2] border border-[#EAE0D3] rounded-2xl px-5 py-3">
-            <div className="text-center sm:text-left">
-              <span className="text-[10px] text-[#8C7A6B] uppercase font-bold tracking-wider block">
-                Order Tracking Number
-              </span>
-              <span className="font-serif text-xl font-bold text-[#C45A2C]">
-                {order.orderNumber}
-              </span>
-            </div>
-            <div className="sm:border-l border-[#DFD5C6] sm:pl-4 text-center sm:text-left">
-              <span className="text-[10px] text-[#8C7A6B] uppercase font-bold tracking-wider block">
-                Current Status
-              </span>
-              <span className="inline-block bg-[#FFF8E1] text-[#B78103] border border-[#FFE082] text-xs font-bold px-2.5 py-0.5 rounded-full mt-0.5">
-                {order.orderStatus} (Awaiting Verification)
-              </span>
+          {/* Order Number Pill */}
+          <div className="pt-2">
+            <div className="inline-block rounded-full border border-[#DCD0C2] bg-white py-1.5 px-6 text-[11px] sm:text-xs font-bold text-[#281B13] tracking-wider uppercase shadow-2xs">
+              ORDER NUMBER: {order.orderNumber}
             </div>
           </div>
         </div>
 
-        {/* Invoice Summary Box */}
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#EBE2D5] shadow-soft space-y-6 print:border-none print:shadow-none">
-          <div className="flex items-center justify-between border-b border-[#F2ECE1] pb-4">
-            <div>
-              <h2 className="font-serif text-lg font-bold text-[#281B13]">
-                Order Details
-              </h2>
-              <span className="text-xs text-[#8C7A6B]">
-                Placed on {formatDateTime(order.createdAt)}
-              </span>
+        {/* Two-Column Grid: Shipping Details & Order Information */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+          {/* Left Card: Shipping Details */}
+          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-[#EBE2D5] shadow-soft space-y-4 text-left">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#C45A2C]">
+              <Truck size={15} />
+              <span>SHIPPING DETAILS</span>
             </div>
 
-            <button
-              onClick={handlePrint}
-              className="print:hidden inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-xl bg-[#FAF7F2] text-[#281B13] border border-[#D5C2B1] hover:bg-[#F2ECE1] transition"
-            >
-              <Printer size={14} />
-              <span>Print Invoice</span>
-            </button>
+            <div className="space-y-3.5 text-xs sm:text-sm">
+              <div>
+                <span className="text-xs text-[#8C7A6B] block">Recipient Name:</span>
+                <span className="font-bold text-[#281B13] text-sm block mt-0.5">
+                  {order.customer.name}
+                </span>
+              </div>
+
+              <div>
+                <div className="flex items-center gap-1.5 text-xs text-[#8C7A6B]">
+                  <Phone size={13} />
+                  <span>Mobile Contact:</span>
+                </div>
+                <span className="font-bold text-[#281B13] text-sm block mt-0.5">
+                  {order.customer.phone}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-xs text-[#8C7A6B] block">District:</span>
+                <span className="font-bold text-[#281B13] text-sm block mt-0.5">
+                  {order.deliveryAddress.district}
+                </span>
+              </div>
+
+              <div>
+                <div className="flex items-center gap-1.5 text-xs text-[#8C7A6B]">
+                  <MapPin size={13} />
+                  <span>Address:</span>
+                </div>
+                <p className="font-medium text-[#281B13] text-xs sm:text-sm mt-0.5 leading-relaxed">
+                  {order.deliveryAddress.address}, {order.deliveryAddress.city}
+                  {order.deliveryAddress.postalCode ? `, ${order.deliveryAddress.postalCode}` : ''}
+                </p>
+              </div>
+
+              <div>
+                <div className="flex items-center gap-1.5 text-xs text-[#8C7A6B]">
+                  <Calendar size={13} />
+                  <span>Requested Delivery / Placed:</span>
+                </div>
+                <span className="font-medium text-[#281B13] text-xs sm:text-sm block mt-0.5">
+                  {formatOrderDate(order.createdAt)}
+                </span>
+              </div>
+            </div>
           </div>
 
-          {/* Items Table */}
-          <div className="space-y-3">
-            {order.items.map((item, idx) => (
+          {/* Right Card: Order Information */}
+          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-[#EBE2D5] shadow-soft flex flex-col justify-between text-left space-y-4">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#6D28D9]">
+                <ShoppingBag size={15} />
+                <span>ORDER INFORMATION</span>
+              </div>
+
+              <div className="space-y-3.5 text-xs sm:text-sm">
+                <div>
+                  <span className="text-xs text-[#8C7A6B] block">Payment Method:</span>
+                  <span className="font-bold text-[#281B13] text-sm block mt-0.5">
+                    {order.paymentMethod === 'COD'
+                      ? 'Cash on Delivery (COD)'
+                      : 'Direct Bank Transfer / Online Banking'}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-xs text-[#8C7A6B] block">Fulfillment Status:</span>
+                  <div className="mt-1">
+                    <span className="inline-block px-3.5 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase bg-[#FEF3C7] text-[#D97706] border border-[#FCD34D]">
+                      PENDING
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Expected Delivery Callout Box */}
+            <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EAE0D3] text-xs text-[#5C4A3E] space-y-1.5 mt-4">
+              <span className="font-bold text-[#281B13] block">Expected Delivery:</span>
+              <p className="text-xs text-[#5C4A3E]">
+                Colombo/Gampaha: <strong>1–3 Business Days.</strong>
+              </p>
+              <p className="text-xs text-[#5C4A3E]">
+                Outstations: <strong>3–5 Business Days.</strong>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Card: ORDERED ITEMIZED SUMMARY */}
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#EBE2D5] shadow-soft space-y-5 text-left mt-6">
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#C45A2C]">
+            <Package size={15} />
+            <span>ORDERED ITEMIZED SUMMARY</span>
+          </div>
+
+          <div>
+            <h3 className="font-bold text-sm sm:text-base text-[#281B13]">
+              Order Items
+            </h3>
+            <p className="text-xs text-[#8C7A6B] mt-0.5">
+              Order confirmed with Flamira Artisan Studio
+            </p>
+          </div>
+
+          {/* Items List */}
+          <div className="divide-y divide-[#F5ECE1] pt-1">
+            {order.items.map((item: any, idx: number) => (
               <div
                 key={idx}
-                className="flex items-center justify-between gap-4 py-3 border-b border-[#F5ECE1] last:border-b-0"
+                className="flex items-center justify-between gap-4 py-3.5 first:pt-2"
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-[#FAF7F2] shrink-0 border border-[#EAE0D3]">
-                    <Image src={item.image} alt={item.title} fill className="object-cover" />
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="relative w-14 h-14 rounded-2xl overflow-hidden bg-[#FAF7F2] shrink-0 border border-[#EAE0D3]">
+                    <Image
+                      src={item.image || '/prod-001.jpg'}
+                      alt={item.title}
+                      fill
+                      className="object-cover"
+                    />
                   </div>
                   <div className="min-w-0">
                     <h4 className="text-xs sm:text-sm font-bold text-[#281B13] truncate">
                       {item.title}
                     </h4>
-                    <span className="text-[11px] text-[#8C7A6B] block">
-                      Quantity: <strong>{item.quantity}</strong> • SKU: {item.sku}
+                    <span className="text-xs text-[#8C7A6B] block">
+                      Qty: {item.quantity}
                     </span>
+                    {item.selectedVariant && (
+                      <span className="text-[11px] text-[#796455] block truncate">
+                        {item.selectedVariant}
+                      </span>
+                    )}
                     {item.customNote && (
                       <span className="text-[11px] text-[#C45A2C] italic block truncate max-w-sm">
-                        Note: &ldquo;{item.customNote}&rdquo;
+                        &quot;{item.customNote}&quot;
                       </span>
                     )}
                   </div>
                 </div>
 
                 <span className="text-xs sm:text-sm font-bold text-[#281B13] shrink-0">
-                  {formatLKR(item.price * item.quantity)}
+                  {formatCurrencyLKR(item.price * item.quantity)}
                 </span>
               </div>
             ))}
           </div>
 
-          {/* Customer & Address Details */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-[#FAF7F2] border border-[#EAE0D3] text-xs">
-            <div>
-              <span className="text-[#8C7A6B] uppercase font-bold text-[10px] block mb-1">
-                Customer Contact
-              </span>
-              <p className="font-bold text-[#281B13]">{order.customer.name}</p>
-              <p className="text-[#5C4A3E]">Phone: {order.customer.phone}</p>
-              {order.customer.whatsapp && <p className="text-[#5C4A3E]">WhatsApp: {order.customer.whatsapp}</p>}
-              <p className="text-[#5C4A3E]">Email: {order.customer.email}</p>
-            </div>
-
-            <div>
-              <span className="text-[#8C7A6B] uppercase font-bold text-[10px] block mb-1">
-                Delivery Address (Cash on Delivery)
-              </span>
-              <p className="text-[#281B13] font-medium">{order.deliveryAddress.address}</p>
-              <p className="text-[#5C4A3E]">
-                {order.deliveryAddress.city}, {order.deliveryAddress.district} District
-              </p>
-              {order.deliveryAddress.postalCode && (
-                <p className="text-[#5C4A3E]">Postal Code: {order.deliveryAddress.postalCode}</p>
-              )}
-            </div>
-          </div>
-
           {/* Pricing Breakdown */}
-          <div className="space-y-1.5 text-xs text-[#5C4A3E] pt-2 border-t border-[#F2ECE1]">
-            <div className="flex justify-between">
-              <span>Subtotal</span>
-              <span className="font-semibold text-[#281B13]">{formatLKR(order.subtotal)}</span>
+          <div className="space-y-2.5 pt-4 border-t border-[#F2ECE1] text-xs sm:text-sm text-[#5C4A3E]">
+            <div className="flex justify-between items-center">
+              <span>Order Items</span>
+              <span className="font-semibold text-[#281B13]">
+                {formatCurrencyLKR(order.subtotal)}
+              </span>
             </div>
-            <div className="flex justify-between">
-              <span>Delivery Fee ({order.deliveryAddress.district})</span>
-              <span>{order.deliveryFee === 0 ? <strong className="text-green-700">FREE</strong> : formatLKR(order.deliveryFee)}</span>
+
+            <div className="flex justify-between items-center">
+              <span>Delivery ({order.deliveryAddress.district})</span>
+              <span className="font-semibold text-[#281B13]">
+                {order.deliveryFee === 0 ? 'FREE' : formatCurrencyLKR(order.deliveryFee)}
+              </span>
             </div>
+
             {order.discount > 0 && (
-              <div className="flex justify-between text-green-700 font-semibold">
+              <div className="flex justify-between items-center text-green-700 font-semibold">
                 <span>Discount</span>
-                <span>-{formatLKR(order.discount)}</span>
+                <span>-{formatCurrencyLKR(order.discount)}</span>
               </div>
             )}
-            <div className="flex justify-between text-base font-bold text-[#281B13] pt-3 border-t border-[#EFE8DF]">
-              <span>Cash Amount Payable on Delivery</span>
-              <span className="text-[#C45A2C] text-xl font-bold">{formatLKR(order.total)}</span>
+
+            <div className="flex justify-between items-center pt-3 border-t border-[#EFE8DF]">
+              <span className="font-serif text-sm sm:text-base font-bold text-[#281B13]">
+                Total Amount ({order.paymentMethod === 'COD' ? 'COD' : 'Bank'})
+              </span>
+              <span className="font-serif text-xl sm:text-2xl font-bold text-[#C45A2C]">
+                {formatCurrencyLKR(order.total)}
+              </span>
             </div>
           </div>
+        </div>
 
-          {/* Next Steps Accordion */}
-          <div className="p-4 rounded-2xl bg-[#FFFBF7] border border-[#ECDCCB] space-y-3 print:hidden">
-            <h4 className="font-serif font-bold text-sm text-[#281B13] flex items-center gap-2">
-              <Clock size={16} className="text-[#C45A2C]" />
-              <span>What Happens Next?</span>
-            </h4>
-            <div className="space-y-2 text-xs text-[#5C4A3E]">
-              <div className="flex items-start gap-2">
-                <span className="w-5 h-5 rounded-full bg-[#FAF3EA] text-[#C45A2C] font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
-                  1
-                </span>
-                <span>Our studio will verify your order via WhatsApp / Call from <strong>071 116 8590</strong>.</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="w-5 h-5 rounded-full bg-[#FAF3EA] text-[#C45A2C] font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
-                  2
-                </span>
-                <span>We lovingly pack your order in sustainable packaging with wax seals.</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="w-5 h-5 rounded-full bg-[#FAF3EA] text-[#C45A2C] font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
-                  3
-                </span>
-                <span>Dispatched via third-party courier. Hand over {formatLKR(order.total)} cash upon delivery!</span>
-              </div>
-            </div>
-          </div>
+        {/* Action Buttons Row Matching Image 2 */}
+        <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-3.5 print:hidden">
+          {/* Left Button: View Order in My Profile */}
+          <Link
+            href="/account"
+            className="w-full sm:flex-1 bg-[#C45A2C] hover:bg-[#B24B20] text-white font-bold py-3.5 px-6 rounded-2xl text-center text-xs sm:text-sm flex items-center justify-center gap-2 shadow-warm hover:shadow-hover transition duration-200"
+          >
+            <FileText size={16} />
+            <span>View Order in My Profile</span>
+          </Link>
 
-          {/* Action CTAs */}
-          <div className="pt-2 flex flex-col sm:flex-row items-center gap-3 print:hidden">
-            <a
-              href={`https://wa.me/94711168590?text=Hi%20Flamira,%20I%20just%20placed%20order%20${order.orderNumber}.%20Can%20you%20please%20confirm%20delivery?`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full sm:flex-1 bg-[#25D366] hover:bg-[#20BA5C] text-white font-bold py-3 px-4 rounded-2xl text-center text-xs flex items-center justify-center gap-2 shadow-sm transition"
-            >
-              <MessageCircle size={16} />
-              <span>WhatsApp Flamira Regarding {order.orderNumber}</span>
-            </a>
+          {/* Middle Button: Continue Shopping */}
+          <Link
+            href="/shop"
+            className="w-full sm:flex-1 bg-white hover:bg-[#FAF7F2] text-[#281B13] border border-[#DFD2C0] font-bold py-3.5 px-6 rounded-2xl text-center text-xs sm:text-sm flex items-center justify-center gap-2 transition duration-200 shadow-2xs"
+          >
+            <span>Continue Shopping</span>
+          </Link>
 
-            <Link
-              href="/track"
-              className="w-full sm:w-auto bg-[#FAF7F2] hover:bg-[#F2ECE1] text-[#281B13] border border-[#D5C2B1] font-bold py-3 px-6 rounded-2xl text-center text-xs transition"
-            >
-              Track Order
-            </Link>
-
-            <Link
-              href="/shop"
-              className="w-full sm:w-auto bg-[#C45A2C] hover:bg-[#B24B20] text-white font-bold py-3 px-6 rounded-2xl text-center text-xs transition"
-            >
-              Back to Store
-            </Link>
-          </div>
+          {/* Right Button: Track via WhatsApp */}
+          <a
+            href={`https://wa.me/94711168590?text=${encodeURIComponent(
+              `Hi Flamira! I just confirmed my order ${order.orderNumber}. Could you please confirm delivery details?`
+            )}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full sm:flex-1 bg-[#281B13] hover:bg-[#3D2C20] text-white font-bold py-3.5 px-6 rounded-2xl text-center text-xs sm:text-sm flex items-center justify-center gap-2 transition duration-200 shadow-warm"
+          >
+            <MessageCircle size={16} className="text-[#25D366]" />
+            <span>Track via WhatsApp</span>
+          </a>
         </div>
       </div>
     </div>

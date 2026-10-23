@@ -3,13 +3,12 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCustomerAuth } from '@/context/CustomerAuthContext';
-import { ShoppingBag } from 'lucide-react';
+import { useCustomerAuth } from '@/context/CustomerAuthContext';import { ShoppingBag } from 'lucide-react';
 
 function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { register } = useCustomerAuth();
+  const { register, sendVerificationCode } = useCustomerAuth();
 
   const isCheckout = searchParams.get('checkout') === 'true';
   const paramEmail = searchParams.get('email') || '';
@@ -63,6 +62,27 @@ function RegisterContent() {
     const res = register(fullName, email, phone, password);
 
     if (res.success) {
+      // Send verification code with order details to the registered email
+      try {
+        const pendingRaw = localStorage.getItem('flamira_pending_checkout');
+        if (pendingRaw) {
+          const pending = JSON.parse(pendingRaw);
+          const itemsSummary = (pending.items || [])
+            .map((i: any) => `${i.title} (×${i.quantity})`)
+            .join(', ');
+          const orderNumber = `ORD-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+          sendVerificationCode(email, fullName.trim(), {
+            orderNumber,
+            items: itemsSummary,
+            total: pending.total ? `LKR ${Number(pending.total).toLocaleString()}` : '',
+          });
+        } else {
+          sendVerificationCode(email, fullName.trim());
+        }
+      } catch {
+        sendVerificationCode(email, fullName.trim());
+      }
+
       if (isCheckout) {
         router.push(`/account/verify?checkout=true&email=${encodeURIComponent(email)}`);
       } else {

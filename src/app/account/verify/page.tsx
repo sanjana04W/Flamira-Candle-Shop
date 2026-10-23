@@ -102,11 +102,39 @@ function VerifyContent() {
           verificationCode: code.trim(),
         });
 
+        // Save customer in Admin CRM panel
+        try {
+          const stored = localStorage.getItem('flamira_admin_customers');
+          const list = stored ? JSON.parse(stored) : [];
+          const cleanEmail = (email || pendingOrder.customer.email).trim().toLowerCase();
+          const existingIdx = list.findIndex((c: any) => c.email?.toLowerCase() === cleanEmail);
+          const customerRecord = {
+            id: existingIdx >= 0 ? list[existingIdx].id : `cust-${Date.now()}`,
+            name: pendingOrder.customer.name,
+            email: cleanEmail,
+            phone: pendingOrder.customer.phone,
+            whatsapp: pendingOrder.customer.whatsapp || pendingOrder.customer.phone,
+            district: pendingOrder.deliveryAddress.district,
+            ordersCount: existingIdx >= 0 ? (list[existingIdx].ordersCount || 0) + 1 : 1,
+            totalSpent: existingIdx >= 0 ? (list[existingIdx].totalSpent || 0) + pendingOrder.total : pendingOrder.total,
+            lastOrderDate: new Date().toISOString(),
+            isEmailVerified: true,
+          };
+          if (existingIdx >= 0) {
+            list[existingIdx] = customerRecord;
+          } else {
+            list.unshift(customerRecord);
+          }
+          localStorage.setItem('flamira_admin_customers', JSON.stringify(list));
+        } catch (crmErr) {
+          console.warn('CRM update error:', crmErr);
+        }
+
         // Clean up pending storage
         localStorage.removeItem('flamira_pending_checkout');
         showToast('Email verified! Your order has been placed.');
 
-        // Navigate to the Order Confirmation page
+        // Navigate to the Order Confirmation page matching reference design
         setTimeout(() => {
           router.push(`/order/${order.orderNumber}`);
         }, 800);
@@ -140,24 +168,7 @@ function VerifyContent() {
             <span className="font-semibold text-[#281B13] break-all">{email || 'your email'}</span>
           </p>
 
-          {/* Demo helper banner so tester can copy code with 1-click */}
-          {activeCode && (
-            <div className="mt-5 p-3 rounded-xl bg-[#E8F5E9] border border-[#A5D6A7] text-left text-xs text-[#1B5E20] flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span>📨</span>
-                <span>
-                  Demo Code: <strong className="font-mono text-sm tracking-widest">{activeCode}</strong>
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCode(activeCode)}
-                className="text-[11px] font-bold text-[#2E7D32] hover:text-[#1B5E20] underline"
-              >
-                Auto-fill
-              </button>
-            </div>
-          )}
+
 
           {error && (
             <div className="mt-4 p-3 rounded-xl bg-red-50 text-red-700 text-xs font-medium border border-red-200">

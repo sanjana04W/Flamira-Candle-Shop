@@ -51,8 +51,26 @@ function LoginContent() {
     const res = login(email, password);
 
     if (res.success) {
-      // Upon logging in, send verification code to user's email
-      sendVerificationCode(email);
+      // Upon logging in, send verification code with order details to user's email
+      try {
+        const pendingRaw = localStorage.getItem('flamira_pending_checkout');
+        if (pendingRaw) {
+          const pending = JSON.parse(pendingRaw);
+          const itemsSummary = (pending.items || [])
+            .map((i: any) => `${i.title} (×${i.quantity})`)
+            .join(', ');
+          const orderNumber = `ORD-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+          sendVerificationCode(email, pending.customer?.name || email, {
+            orderNumber,
+            items: itemsSummary,
+            total: pending.total ? `LKR ${Number(pending.total).toLocaleString()}` : '',
+          });
+        } else {
+          sendVerificationCode(email);
+        }
+      } catch {
+        sendVerificationCode(email);
+      }
 
       if (isCheckout) {
         router.push(`/account/verify?checkout=true&email=${encodeURIComponent(email)}`);

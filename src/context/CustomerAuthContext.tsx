@@ -54,6 +54,14 @@ const INITIAL_CUSTOMERS: Array<CustomerUser & { pass: string }> = [
     pass: 'customer123',
     isEmailVerified: true,
   },
+  {
+    id: 'cust-103',
+    name: 'Chamika Dilshan',
+    email: 'chamika.d@gmail.com',
+    phone: '077 012 2331',
+    pass: 'customer123',
+    isEmailVerified: true,
+  },
 ];
 
 export const CustomerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -91,7 +99,20 @@ export const CustomerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const users: Array<CustomerUser & { pass: string }> = usersRaw
         ? JSON.parse(usersRaw)
         : INITIAL_CUSTOMERS;
-      return users.some((u) => u.email.toLowerCase() === cleanEmail);
+      if (users.some((u) => u.email.toLowerCase() === cleanEmail)) {
+        return true;
+      }
+
+      // Check admin customer records as well
+      const adminCustsRaw = localStorage.getItem('flamira_admin_customers');
+      if (adminCustsRaw) {
+        const adminCusts = JSON.parse(adminCustsRaw);
+        if (adminCusts.some((c: any) => c.email?.toLowerCase() === cleanEmail)) {
+          return true;
+        }
+      }
+
+      return false;
     } catch {
       return false;
     }
