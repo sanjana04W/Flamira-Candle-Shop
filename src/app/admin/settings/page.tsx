@@ -5,7 +5,7 @@ import { Save, ShieldCheck, Key, Globe, Bell, Smartphone } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 
 export default function AdminSettingsPage() {
-  const { showToast } = useStore();
+  const { showToast, resetToDefaults } = useStore();
   const [storeName, setStoreName] = useState('Flamira Candle & Décor Studio');
   const [phone, setPhone] = useState('071 116 8590');
   const [email, setEmail] = useState('candlesflamira@gmail.com');
@@ -152,6 +152,19 @@ export default function AdminSettingsPage() {
             <p className="text-[11px] text-[#2E7D32] font-semibold pt-1">
               ✓ Connected &amp; Operational in Hybrid Local-Cloud Storage Mode.
             </p>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm('Re-sync and reload all 37 original handcrafted products?')) {
+                    resetToDefaults();
+                  }
+                }}
+                className="bg-white hover:bg-[#FAF7F2] text-[#C45A2C] border border-[#D5C2B1] font-semibold text-xs px-4 py-2 rounded-xl transition shadow-xs"
+              >
+                ↻ Re-sync Full 37 Product Catalogue
+              </button>
+            </div>
           </div>
         </div>
       </form>

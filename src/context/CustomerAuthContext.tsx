@@ -17,7 +17,11 @@ interface CustomerAuthContextType {
   register: (name: string, email: string, phone: string, pass: string) => { success: boolean; message?: string };
   logout: () => void;
   checkAccountExists: (email: string) => boolean;
-  sendVerificationCode: (email: string) => { success: boolean; code: string; message: string };
+  sendVerificationCode: (
+    email: string,
+    customerName?: string,
+    extraDetails?: { orderNumber?: string; items?: string; total?: string }
+  ) => { success: boolean; code: string; message: string };
   verifyCode: (email: string, code: string) => { success: boolean; message: string };
   getLatestVerificationCode: (email: string) => string | null;
 }
@@ -93,7 +97,11 @@ export const CustomerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  const sendVerificationCode = (email: string): { success: boolean; code: string; message: string } => {
+  const sendVerificationCode = (
+    email: string,
+    customerName?: string,
+    extraDetails?: { orderNumber?: string; items?: string; total?: string }
+  ): { success: boolean; code: string; message: string } => {
     const cleanEmail = email.trim().toLowerCase();
     // Generate a secure 6-digit OTP code (e.g. 482910)
     const code = Math.floor(100000 + Math.random() * 900000).toString();
@@ -107,6 +115,23 @@ export const CustomerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
         })
       );
       console.log(`[Flamira Email Verification Service] Code sent to ${cleanEmail}: ${code}`);
+
+      // Dispatch to actual email address via server API & EmailJS
+      if (typeof window !== 'undefined') {
+        fetch('/api/send-verification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: cleanEmail,
+            code,
+            name: customerName || 'Valued Customer',
+            orderNumber: extraDetails?.orderNumber,
+            items: extraDetails?.items,
+            total: extraDetails?.total,
+          }),
+        }).catch((err) => console.warn('Background send-verification error:', err));
+      }
+
       return {
         success: true,
         code,

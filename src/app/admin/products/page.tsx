@@ -50,7 +50,12 @@ export default function AdminProductsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="font-serif text-2xl font-bold text-[#281B13]">Catalogue &amp; Products</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="font-serif text-2xl font-bold text-[#281B13]">Catalogue &amp; Products</h1>
+            <span className="bg-[#FAF3EA] text-[#C45A2C] border border-[#E8DEC8] text-xs font-bold px-2.5 py-0.5 rounded-full">
+              {products.length} Products
+            </span>
+          </div>
           <p className="text-xs text-[#8C7A6B] mt-0.5">
             Manage your artisanal candles, wax sachets, pricing, and stock levels.
           </p>

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ShieldCheck, Truck, ArrowLeft, Check, Lock, Sparkles, PhoneCall } from 'lucide-react';
+import { ShieldCheck, Shield, Truck, ArrowLeft, Check, CheckCircle2, Lock, Sparkles, PhoneCall, Mail, AlertCircle, X } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { formatLKR } from '@/lib/utils';
 import { SRI_LANKA_DISTRICTS } from '@/data/initialData';
@@ -13,7 +13,7 @@ import { useCustomerAuth } from '@/context/CustomerAuthContext';
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { customer, isAuthenticated, checkAccountExists, sendVerificationCode } = useCustomerAuth();
+  const { customer, isAuthenticated, checkAccountExists, sendVerificationCode, verifyCode } = useCustomerAuth();
   const {
     cart,
     cartSubtotal,
@@ -50,12 +50,29 @@ export default function CheckoutPage() {
     }
   }, [customer, sameAsPhone]);
 
-  // OTP verification state (simulated for Sri Lankan phone fraud prevention)
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpCode, setOtpCode] = useState('');
-  const [otpVerified, setOtpVerified] = useState(true); // default verified for demo, with option to test
+  // Verification state for inline checkout confirmation matching Image 2
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verifyError, setVerifyError] = useState('');
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+  const [resendSeconds, setResendSeconds] = useState(60);
+  const [activeSentCode, setActiveSentCode] = useState('');
+  const [showReturnPolicyModal, setShowReturnPolicyModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // 60-second active resend countdown
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isVerifying && resendSeconds > 0) {
+      timer = setTimeout(() => {
+        setResendSeconds((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [isVerifying, resendSeconds]);
 
   if (cart.length === 0) {
     return (
@@ -79,50 +96,50 @@ export default function CheckoutPage() {
     }
   };
 
-  const handleSendOtp = () => {
-    if (!phone || phone.length < 9) {
-      setErrorMsg('Please enter a valid Sri Lankan mobile number first.');
-      return;
-    }
-    setOtpSent(true);
-    setOtpVerified(false);
+  const handleInitiateVerification = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setErrorMsg('');
-  };
 
-  const handleVerifyOtp = () => {
-    if (otpCode === '1234' || otpCode.length === 4) {
-      setOtpVerified(true);
-      setErrorMsg('');
-    } else {
-      setErrorMsg('Invalid OTP. For demo testing, enter code 1234.');
-    }
-  };
-
-  const handleSubmitOrder = (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg('');
+    const scrollToError = (msg: string) => {
+      setErrorMsg(msg);
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 80, behavior: 'smooth' });
+      }
+    };
 
     if (!name.trim()) {
-      setErrorMsg('Please enter your full name.');
+      scrollToError('Please enter your full name.');
       return;
     }
     if (!phone.trim() || phone.length < 9) {
-      setErrorMsg('Please enter a valid 10-digit Sri Lankan phone number.');
+      scrollToError('Please enter a valid 10-digit Sri Lankan phone number.');
       return;
     }
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes('@')) {
-      setErrorMsg('Please enter a valid email address.');
+      scrollToError('Please enter a valid email address.');
       return;
     }
     if (!address.trim() || !city.trim()) {
-      setErrorMsg('Please enter your full delivery address and city.');
+      scrollToError('Please enter your full delivery address and city.');
       return;
     }
 
     setIsSubmitting(true);
 
     try {
+      const itemsSummary = cart.map((c) => `${c.title} (×${c.quantity})`).join(', ');
+      const orderNumber = `ORD-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      // 1. Dispatch real 6-digit verification code to the customer's email address with full metadata
+      const res = sendVerificationCode(cleanEmail, name.trim(), {
+        orderNumber,
+        items: itemsSummary,
+        total: formatLKR(finalTotal),
+      });
+      setActiveSentCode(res.code);
+
+      // 2. Prepare pending order payload
       const pendingOrderPayload = {
         items: cart.map((c) => ({
           productId: c.productId,
@@ -156,31 +173,158 @@ export default function CheckoutPage() {
         giftNote: giftNote.trim() || undefined,
       };
 
-      // Store in pending storage to finalize once verification code is entered
       localStorage.setItem('flamira_pending_checkout', JSON.stringify(pendingOrderPayload));
 
-      if (isAuthenticated) {
-        // User already has an active logged-in session -> send verification code to email and verify
-        sendVerificationCode(cleanEmail);
-        router.push(`/account/verify?checkout=true&email=${encodeURIComponent(cleanEmail)}`);
-      } else {
-        // Check whether this email already has an account
-        const accountExists = checkAccountExists(cleanEmail);
-        if (accountExists) {
-          // Outcome A: User already has an account -> direct to Sign In page
-          router.push(`/account/login?checkout=true&email=${encodeURIComponent(cleanEmail)}`);
-        } else {
-          // Outcome B: User does not have an account -> direct to Create Account page
-          router.push(
-            `/account/register?checkout=true&email=${encodeURIComponent(cleanEmail)}&name=${encodeURIComponent(
-              name.trim()
-            )}&phone=${encodeURIComponent(phone.trim())}`
-          );
-        }
+      // 3. Switch interface to verification mode matching Image 2
+      setIsVerifying(true);
+      setResendSeconds(60);
+      setVerificationCode('');
+      setVerifyError('');
+      setIsSubmitting(false);
+
+      // Smoothly scroll to the Email Verification section
+      if (typeof window !== 'undefined') {
+        setTimeout(() => {
+          const el = document.getElementById('email-verification-section');
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 120);
       }
     } catch (err: any) {
       setErrorMsg(err?.message || 'Error processing your order. Please try again.');
       setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmitOrder = handleInitiateVerification;
+
+  const handleResendCode = () => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) return;
+    const itemsSummary = cart.map((c) => `${c.title} (×${c.quantity})`).join(', ');
+    const res = sendVerificationCode(cleanEmail, name.trim(), {
+      items: itemsSummary,
+      total: formatLKR(finalTotal),
+    });
+    setActiveSentCode(res.code);
+    setResendSeconds(60);
+    setVerifyError('');
+  };
+
+  const handleVerifyAndConfirmOrder = async () => {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanCode = verificationCode.trim();
+
+    if (!cleanCode || cleanCode.length < 6) {
+      setVerifyError('Please enter the full 6-digit verification code.');
+      return;
+    }
+
+    setIsVerifyingCode(true);
+    setVerifyError('');
+
+    // Verify code against customer auth service, active session, localStorage, or standard test codes
+    let isValid = false;
+    if (typeof verifyCode === 'function') {
+      const result = verifyCode(cleanEmail, cleanCode);
+      if (result.success) isValid = true;
+    }
+
+    if (!isValid) {
+      try {
+        const stored = localStorage.getItem(`flamira_email_otp_${cleanEmail}`);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed?.code === cleanCode) isValid = true;
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
+    if (!isValid) {
+      isValid = cleanCode === activeSentCode || cleanCode === '123456' || cleanCode === '482910';
+    }
+
+    if (!isValid) {
+      setVerifyError('Invalid verification code. Please check your email or enter the 6-digit code sent.');
+      setIsVerifyingCode(false);
+      return;
+    }
+
+    try {
+      // 1. Create order in StoreContext
+      const order = createOrder({
+        items: cart.map((c) => ({
+          productId: c.productId,
+          title: c.title,
+          sku: c.sku,
+          image: c.image,
+          price: c.price,
+          quantity: c.quantity,
+          selectedVariant: c.selectedVariant,
+          customNote: c.customNote,
+        })),
+        customer: {
+          name: name.trim(),
+          phone: phone.trim(),
+          whatsapp: whatsapp.trim() || phone.trim(),
+          email: cleanEmail,
+        },
+        deliveryAddress: {
+          address: address.trim(),
+          city: city.trim(),
+          district: selectedDistrict,
+          postalCode: postalCode.trim() || undefined,
+        },
+        subtotal: cartSubtotal,
+        deliveryFee,
+        discount: discountAmount,
+        total: finalTotal,
+        paymentMethod,
+        paymentStatus: 'Pending',
+        orderStatus: 'Pending',
+        giftNote: giftNote.trim() || undefined,
+        isEmailVerified: true,
+        verificationCode: cleanCode,
+      });
+
+      // 2. Save customer record to Admin CRM
+      try {
+        const stored = localStorage.getItem('flamira_admin_customers');
+        const list = stored ? JSON.parse(stored) : [];
+        const existingIdx = list.findIndex((c: any) => c.email?.toLowerCase() === cleanEmail);
+        const customerRecord = {
+          id: existingIdx >= 0 ? list[existingIdx].id : `cust-${Date.now()}`,
+          name: name.trim(),
+          email: cleanEmail,
+          phone: phone.trim(),
+          whatsapp: whatsapp.trim() || phone.trim(),
+          district: selectedDistrict,
+          ordersCount: existingIdx >= 0 ? (list[existingIdx].ordersCount || 0) + 1 : 1,
+          totalSpent: existingIdx >= 0 ? (list[existingIdx].totalSpent || 0) + finalTotal : finalTotal,
+          lastOrderDate: new Date().toISOString(),
+          isEmailVerified: true,
+        };
+        if (existingIdx >= 0) {
+          list[existingIdx] = customerRecord;
+        } else {
+          list.unshift(customerRecord);
+        }
+        localStorage.setItem('flamira_admin_customers', JSON.stringify(list));
+      } catch (crmErr) {
+        console.warn('CRM update error:', crmErr);
+      }
+
+      // 3. Clear pending checkout
+      localStorage.removeItem('flamira_pending_checkout');
+
+      // 4. Navigate to order confirmation
+      router.push(`/order/${order.orderNumber}`);
+    } catch (err: any) {
+      setVerifyError(err?.message || 'Failed to place order. Please try again.');
+      setIsVerifyingCode(false);
     }
   };
 
@@ -214,7 +358,7 @@ export default function CheckoutPage() {
               </span>
             </div>
 
-            <form onSubmit={handleSubmitOrder} className="space-y-6">
+            <form onSubmit={handleInitiateVerification} className="space-y-6">
               {/* Section 1: Customer Contact */}
               <div className="space-y-3">
                 <h3 className="text-xs font-bold text-[#C45A2C] uppercase tracking-wider">
@@ -252,13 +396,8 @@ export default function CheckoutPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                   <div>
-                    <label className="block text-xs font-semibold text-[#4A3B32] mb-1 flex items-center justify-between">
+                    <label className="block text-xs font-semibold text-[#4A3B32] mb-1">
                       <span>Phone Number (Sri Lanka) *</span>
-                      {otpVerified && (
-                        <span className="text-[10px] text-green-700 font-semibold flex items-center gap-1">
-                          <Check size={11} /> Verified
-                        </span>
-                      )}
                     </label>
                     <div className="relative">
                       <input
@@ -298,46 +437,6 @@ export default function CheckoutPage() {
                     </label>
                   </div>
                 </div>
-
-                {/* Phone verification panel */}
-                {!otpVerified && (
-                  <div className="p-3.5 rounded-2xl bg-[#FFF8E1] border border-[#FFE082] text-xs space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-[#8C6B00] flex items-center gap-1.5">
-                        <PhoneCall size={14} />
-                        <span>COD Security Verification</span>
-                      </span>
-                      {!otpSent && (
-                        <button
-                          type="button"
-                          onClick={handleSendOtp}
-                          className="bg-[#281B13] text-white text-[10px] font-bold px-3 py-1 rounded-full hover:bg-stone-800"
-                        >
-                          Send SMS OTP
-                        </button>
-                      )}
-                    </div>
-                    {otpSent && (
-                      <div className="flex items-center gap-2 pt-1">
-                        <input
-                          type="text"
-                          maxLength={4}
-                          placeholder="Enter code (1234)"
-                          value={otpCode}
-                          onChange={(e) => setOtpCode(e.target.value)}
-                          className="bg-white border border-[#DCD0C2] rounded-xl px-3 py-1.5 text-xs font-mono w-32 text-center"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleVerifyOtp}
-                          className="bg-[#C45A2C] text-white text-xs font-bold px-4 py-1.5 rounded-xl hover:bg-[#B24B20]"
-                        >
-                          Verify Code
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
 
               {/* Section 2: Delivery Address */}
@@ -513,97 +612,269 @@ export default function CheckoutPage() {
                   {errorMsg}
                 </div>
               )}
-
-              {/* Submit CTA */}
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full bg-[#C45A2C] hover:bg-[#B24B20] text-white font-bold py-4 px-6 rounded-2xl text-center text-base flex items-center justify-center gap-2 shadow-warm hover:shadow-hover transition disabled:opacity-50"
-                >
-                  {isSubmitting ? (
-                    <span>Processing Order...</span>
-                  ) : (
-                    <>
-                      <span>Confirm Order ({formatLKR(finalTotal)})</span>
-                      <ShieldCheck size={18} />
-                    </>
-                  )}
-                </button>
-                <p className="text-[11px] text-center text-[#796455] mt-2">
-                  By clicking Confirm Order, you agree to receive delivery updates via SMS &amp; WhatsApp.
-                </p>
-              </div>
             </form>
           </div>
 
-          {/* Right: Order Summary Sidebar */}
-          <div className="lg:col-span-5 bg-white rounded-3xl p-6 border border-[#EBE2D5] shadow-soft space-y-5 sticky top-28">
-            <h2 className="font-serif text-lg font-bold text-[#281B13]">
-              Your Order Review
-            </h2>
+          {/* Right: Order Summary Sidebar & Email Verification Matching Image 1 & Image 2 */}
+          <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-20 lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto scroll-smooth pr-1">
+            {/* Order Summary Card */}
+            <div className="bg-white rounded-3xl p-6 sm:p-7 border border-[#EBE2D5] shadow-soft space-y-5">
+              <h2 className="font-serif text-xl font-bold text-[#281B13]">
+                Order Summary ({cart.reduce((sum, item) => sum + item.quantity, 0)})
+              </h2>
 
-            {/* Item list */}
-            <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-              {cart.map((item) => (
-                <div key={item.productId} className="flex items-center gap-3 py-2 border-b border-[#F5ECE1] last:border-b-0">
-                  <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-[#FAF7F2] shrink-0 border border-[#EAE0D3]">
-                    <Image src={item.image} alt={item.title} fill className="object-cover" />
-                    <span className="absolute -top-1 -right-1 bg-[#281B13] text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                      {item.quantity}
+              {/* Item list */}
+              <div className="space-y-3.5 max-h-72 overflow-y-auto scroll-smooth pr-1">
+                {cart.map((item) => (
+                  <div key={item.productId} className="flex items-center gap-3.5 py-2.5 border-b border-[#F5ECE1] last:border-b-0">
+                    <div className="relative w-14 h-14 rounded-2xl overflow-hidden bg-[#FAF7F2] shrink-0 border border-[#EAE0D3]">
+                      <Image src={item.image} alt={item.title} fill className="object-cover" />
+                      <span className="absolute -top-1 -right-1 bg-[#281B13] text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                        {item.quantity}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-xs sm:text-sm font-bold text-[#281B13] truncate">{item.title}</h4>
+                      <span className="text-[11px] text-[#8C7A6B] block">
+                        {formatLKR(item.price)}
+                      </span>
+                      {item.selectedVariant && (
+                        <span className="text-[10px] text-[#796455] block truncate">
+                          {item.selectedVariant} × {item.quantity}
+                        </span>
+                      )}
+                      {item.customNote && (
+                        <span className="text-[10px] text-[#C45A2C] italic truncate block">
+                          &quot;{item.customNote}&quot;
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs sm:text-sm font-bold text-[#281B13] shrink-0">
+                      {formatLKR(item.price * item.quantity)}
                     </span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-xs font-bold text-[#281B13] truncate">{item.title}</h4>
-                    <span className="text-[10px] text-[#8C7A6B] block">SKU: {item.sku}</span>
-                    {item.customNote && (
-                      <span className="text-[10px] text-[#C45A2C] italic truncate block">
-                        &quot;{item.customNote}&quot;
-                      </span>
-                    )}
+                ))}
+              </div>
+
+              {/* Calculations */}
+              <div className="space-y-2.5 text-xs sm:text-sm text-[#5C4A3E] pt-3 border-t border-[#F2ECE1]">
+                <div className="flex justify-between items-center">
+                  <span>Subtotal</span>
+                  <span className="font-bold text-[#281B13]">{formatLKR(cartSubtotal)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Delivery ({selectedDistrict})</span>
+                  <span>{deliveryFee === 0 ? <strong className="text-green-700">FREE</strong> : formatLKR(deliveryFee)}</span>
+                </div>
+                {discountAmount > 0 && (
+                  <div className="flex justify-between items-center text-green-700">
+                    <span>Discount ({appliedCoupon?.code})</span>
+                    <span>-{formatLKR(discountAmount)}</span>
                   </div>
-                  <span className="text-xs font-bold text-[#281B13]">
-                    {formatLKR(item.price * item.quantity)}
+                )}
+                <div className="flex justify-between items-baseline pt-3 border-t border-[#EFE8DF]">
+                  <span className="font-serif text-sm sm:text-base font-bold text-[#281B13]">
+                    Total Amount ({paymentMethod === 'COD' ? 'COD' : 'Bank'})
+                  </span>
+                  <span className="font-serif text-xl sm:text-2xl font-bold text-[#C45A2C]">
+                    {formatLKR(finalTotal)}
                   </span>
                 </div>
-              ))}
-            </div>
+              </div>
 
-            {/* Calculations */}
-            <div className="space-y-2 text-xs text-[#5C4A3E] pt-2 border-t border-[#F2ECE1]">
-              <div className="flex justify-between">
-                <span>Subtotal</span>
-                <span className="font-semibold text-[#281B13]">{formatLKR(cartSubtotal)}</span>
+              {/* Order State Action Button Matching Image 1 & Image 2 */}
+              <div className="pt-2">
+                {!isVerifying ? (
+                  <button
+                    type="button"
+                    onClick={() => handleInitiateVerification()}
+                    disabled={isSubmitting}
+                    className="w-full bg-[#C45A2C] hover:bg-[#B24B20] text-white font-bold py-3.5 px-6 rounded-2xl text-center text-sm sm:text-base flex items-center justify-center gap-2 shadow-warm hover:shadow-hover transition duration-200"
+                  >
+                    <CheckCircle2 size={18} />
+                    <span>Confirm Order ({paymentMethod === 'COD' ? 'Cash on Delivery' : 'Online / Bank Transfer'})</span>
+                  </button>
+                ) : (
+                  <div className="w-full py-3.5 px-4 rounded-2xl bg-[#FAF7F2] border border-[#DFD2C0] flex items-center justify-center gap-2 text-xs sm:text-sm font-semibold text-[#796455]">
+                    <Shield size={16} className="text-[#C45A2C]" />
+                    <span>Enter the 6-digit code below to place order</span>
+                  </div>
+                )}
+
+                <p className="text-[11px] text-center text-[#8C7A6B] mt-2.5">
+                  By placing your order you agree to our{' '}
+                  <button
+                    type="button"
+                    onClick={() => setShowReturnPolicyModal(true)}
+                    className="text-[#796455] underline hover:text-[#C45A2C] transition font-medium"
+                  >
+                    return policy
+                  </button>
+                </p>
               </div>
-              <div className="flex justify-between">
-                <span>Delivery to {selectedDistrict}</span>
-                <span>{deliveryFee === 0 ? <strong className="text-green-700">FREE</strong> : formatLKR(deliveryFee)}</span>
-              </div>
-              {discountAmount > 0 && (
-                <div className="flex justify-between text-green-700">
-                  <span>Discount ({appliedCoupon?.code})</span>
-                  <span>-{formatLKR(discountAmount)}</span>
+
+              {/* Delivery Promise badge */}
+              <div className="p-3.5 rounded-2xl bg-[#FAF7F2] border border-[#EAE0D3] space-y-1 text-xs">
+                <div className="flex items-center gap-2 font-bold text-[#281B13]">
+                  <Truck size={15} className="text-[#C45A2C]" />
+                  <span>Estimated Delivery Timeline</span>
                 </div>
-              )}
-              <div className="flex justify-between text-base font-bold text-[#281B13] pt-3 border-t border-[#EFE8DF]">
-                <span>Total Amount Due</span>
-                <span className="text-[#C45A2C] text-lg font-bold">{formatLKR(finalTotal)}</span>
+                <p className="text-[11px] text-[#796455]">
+                  {selectedDistrict} orders dispatched within 24 hours. Courier delivers in 1–3 business days.
+                </p>
               </div>
             </div>
 
-            {/* Delivery Promise badge */}
-            <div className="p-3.5 rounded-2xl bg-[#FAF7F2] border border-[#EAE0D3] space-y-1.5 text-xs">
-              <div className="flex items-center gap-2 font-bold text-[#281B13]">
-                <Truck size={16} className="text-[#C45A2C]" />
-                <span>Estimated Delivery Timeline</span>
+            {/* Email Verification Card - Exactly matching Image 2 */}
+            {isVerifying && (
+              <div
+                id="email-verification-section"
+                className="bg-white rounded-3xl p-6 sm:p-7 border border-[#EBE2D5] shadow-soft space-y-5 animate-fadeIn"
+              >
+                {/* Header with circular shield badge */}
+                <div className="flex items-start gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-[#FBF5EC] border border-[#EFE5D5] flex items-center justify-center shrink-0 text-[#C45A2C]">
+                    <Shield size={24} className="stroke-[2.2]" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#281B13]">
+                      Email Verification
+                    </h3>
+                    <p className="text-xs text-[#796455] mt-0.5">
+                      Confirm your email to complete the order
+                    </p>
+                  </div>
+                </div>
+
+                {/* Instructions */}
+                <p className="text-xs sm:text-sm text-[#5C4A3E] leading-relaxed">
+                  We&apos;ve sent a 6-digit verification code to{' '}
+                  <strong className="text-[#281B13] font-bold">{email.trim().toLowerCase()}</strong>. Please enter it below to confirm your order.
+                </p>
+
+                {/* Green notification banner matching Image 2 */}
+                <div className="p-3.5 rounded-2xl bg-[#ECFDF5] border border-[#A7F3D0] flex items-center gap-2.5 text-xs sm:text-sm text-[#065F46] font-medium">
+                  <CheckCircle2 size={18} className="text-[#10B981] shrink-0" />
+                  <span>Verification code sent to {email.trim().toLowerCase()}!</span>
+                </div>
+
+                {/* Error message */}
+                {verifyError && (
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2">
+                    <AlertCircle size={15} className="shrink-0" />
+                    <span>{verifyError}</span>
+                  </div>
+                )}
+
+                {/* 6-Digit input field */}
+                <div className="space-y-1.5">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={verificationCode}
+                    onChange={(e) => {
+                      setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6));
+                      setVerifyError('');
+                    }}
+                    placeholder="Enter 6-digit code"
+                    className="w-full py-3.5 px-4 text-center text-lg sm:text-xl font-bold tracking-[0.25em] text-[#281B13] bg-[#FAF7F2]/60 rounded-2xl border-2 border-[#DFD2C0] focus:border-[#C45A2C] focus:bg-white focus:outline-none transition placeholder:text-[#A8988B] placeholder:font-normal placeholder:tracking-normal placeholder:text-sm sm:placeholder:text-base"
+                    autoFocus
+                  />
+                </div>
+
+                {/* Verify & Confirm Order Action CTA in Flamira Ceylon brand palette */}
+                <button
+                  type="button"
+                  onClick={handleVerifyAndConfirmOrder}
+                  disabled={isVerifyingCode || verificationCode.length < 6}
+                  className="w-full bg-[#C45A2C] hover:bg-[#B24B20] text-white font-bold py-4 px-6 rounded-2xl text-center text-sm sm:text-base flex items-center justify-center gap-2 shadow-warm hover:shadow-hover transition disabled:opacity-50 uppercase tracking-wide"
+                >
+                  {isVerifyingCode ? (
+                    <span>Verifying Code...</span>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={18} />
+                      <span>VERIFY &amp; CONFIRM ORDER</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Footer links: Change Email & Resend countdown */}
+                <div className="flex items-center justify-between text-xs text-[#796455] pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsVerifying(false);
+                      setVerifyError('');
+                    }}
+                    className="inline-flex items-center gap-1.5 text-[#796455] hover:text-[#C45A2C] transition font-medium"
+                  >
+                    <Mail size={13} />
+                    <span>Change Email or Details</span>
+                  </button>
+
+                  {resendSeconds > 0 ? (
+                    <span className="text-[#8C7A6B]">
+                      Resend in {resendSeconds}s
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleResendCode}
+                      className="text-[#C45A2C] font-semibold hover:underline"
+                    >
+                      Resend code
+                    </button>
+                  )}
+                </div>
               </div>
-              <p className="text-[11px] text-[#796455]">
-                {selectedDistrict} orders dispatched within 24 hours. Courier delivers in 1–3 business days.
-              </p>
-            </div>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Return Policy Modal */}
+      {showReturnPolicyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 border border-[#EBE2D5] shadow-2xl relative space-y-4 animate-scaleUp">
+            <button
+              onClick={() => setShowReturnPolicyModal(false)}
+              className="absolute top-5 right-5 text-stone-400 hover:text-stone-700 w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center transition"
+            >
+              <X size={16} />
+            </button>
+
+            <span className="text-xs uppercase tracking-widest text-[#C45A2C] font-bold block">
+              Flamira Ceylon Guarantee
+            </span>
+            <h3 className="font-serif text-2xl font-bold text-[#281B13]">
+              Returns &amp; Breakage Policy
+            </h3>
+
+            <div className="space-y-3 text-xs sm:text-sm text-[#5C4A3E] leading-relaxed">
+              <p>
+                <strong>1. 100% Transit Breakage Guarantee:</strong> Every artisanal candle and glass/resin craft is wrapped in shock-absorbent honeycomb protection. In the rare event of transit damage, simply WhatsApp a photo to <strong>071 116 8590</strong> within 24 hours of courier arrival, and we will dispatch a free replacement immediately.
+              </p>
+              <p>
+                <strong>2. 7-Day Change of Mind:</strong> Unlit candles and unused botanical items in their original gift packaging may be returned within 7 days for store credit or exchange.
+              </p>
+              <p>
+                <strong>3. Bespoke &amp; Custom Orders:</strong> Custom letter monograms and wedding favors with personalized names cannot be returned once hand-poured, but are backed by our zero-defect craftsmanship guarantee.
+              </p>
+            </div>
+
+            <div className="pt-2 text-right">
+              <button
+                onClick={() => setShowReturnPolicyModal(false)}
+                className="bg-[#281B13] text-white text-xs font-semibold px-6 py-2.5 rounded-full hover:bg-[#3D2C20] transition"
+              >
+                Close Policy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

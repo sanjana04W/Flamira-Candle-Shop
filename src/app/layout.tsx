@@ -7,6 +7,7 @@ import { Footer } from '@/components/layout/Footer';
 import { CartDrawer } from '@/components/storefront/CartDrawer';
 import { CartNotificationToast } from '@/components/storefront/CartNotificationToast';
 import { FloatingWhatsApp } from '@/components/layout/FloatingWhatsApp';
+import { ScrollNavigation } from '@/components/layout/ScrollNavigation';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://flamira.lk'),
@@ -45,6 +46,7 @@ export default function RootLayout({
             <CartDrawer />
             <CartNotificationToast />
             <FloatingWhatsApp />
+            <ScrollNavigation />
             <main className="flex-1">{children}</main>
             <Footer />
           </CustomerAuthProvider>

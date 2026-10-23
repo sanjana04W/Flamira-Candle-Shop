@@ -88,7 +88,7 @@ function ShopContent() {
             Explore All Creations
           </h1>
           <p className="text-sm text-[#796455] mt-2">
-            Browse our complete catalogue of botanical wax sachets, soy scented jars, and handmade gift keepsakes.
+            Browse our complete catalogue of {products.length} botanical wax sachets, soy scented jars, and handmade gift keepsakes.
           </p>
         </div>
 

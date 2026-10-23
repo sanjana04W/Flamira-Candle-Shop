@@ -3,12 +3,19 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 5rem;
+    -webkit-overflow-scrolling: touch;
+  }
+
   body {
     background-color: #FAF7F2;
     color: #281B13;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
   }
 
   h1, h2, h3, h4, .font-serif-heading {
@@ -16,7 +23,7 @@
   }
 }
 
-/* Custom scrollbar */
+/* Custom smooth scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -27,6 +34,7 @@
 ::-webkit-scrollbar-thumb {
   background: #DFD2C0;
   border-radius: 4px;
+  transition: background 0.2s ease;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #C45A2C;

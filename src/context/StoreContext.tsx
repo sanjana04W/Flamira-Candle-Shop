@@ -60,7 +60,7 @@ const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 const STORAGE_KEYS = {
   CART: 'flamira_cart_v1',
-  PRODUCTS: 'flamira_products_v1',
+  PRODUCTS: 'flamira_products_v3',
   ORDERS: 'flamira_orders_v1',
   CUSTOMERS: 'flamira_customers_v1',
   DISTRICT: 'flamira_district_v1',
@@ -83,9 +83,26 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Load from localStorage on client-side mount
   useEffect(() => {
     try {
+      // Clear legacy storage keys if outdated
+      localStorage.removeItem('flamira_products_v1');
+      localStorage.removeItem('flamira_products_v2');
+
       const storedProducts = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
       if (storedProducts) {
-        setProducts(JSON.parse(storedProducts));
+        const parsed = JSON.parse(storedProducts);
+        // Filter out any stale product that has the logo or prod-038
+        const clean = Array.isArray(parsed)
+          ? parsed.filter((p: Product) => p.id !== 'prod-038' && p.images[0] !== '/flamira-logo.png')
+          : [];
+        if (clean.length >= INITIAL_PRODUCTS.length) {
+          setProducts(clean);
+        } else {
+          setProducts(INITIAL_PRODUCTS);
+          localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(INITIAL_PRODUCTS));
+        }
+      } else {
+        setProducts(INITIAL_PRODUCTS);
+        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(INITIAL_PRODUCTS));
       }
 
       const storedOrders = localStorage.getItem(STORAGE_KEYS.ORDERS);
